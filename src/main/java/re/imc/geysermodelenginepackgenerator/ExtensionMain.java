@@ -5,6 +5,7 @@ import org.geysermc.event.subscribe.Subscribe;
 import org.geysermc.geyser.api.event.lifecycle.GeyserLoadResourcePacksEvent;
 import org.geysermc.geyser.api.event.lifecycle.GeyserPreInitializeEvent;
 import org.geysermc.geyser.api.extension.Extension;
+import org.geysermc.geyser.api.extension.ExtensionLogger;
 import re.imc.geysermodelenginepackgenerator.generator.Entity;
 import re.imc.geysermodelenginepackgenerator.generator.Geometry;
 import re.imc.geysermodelenginepackgenerator.util.ZipUtil;
@@ -21,12 +22,15 @@ public class ExtensionMain implements Extension {
 
     private File source;
 
-    Path generatedPackZip;
+    private Path generatedPackZip;
+    public static ExtensionLogger LOGGER;
 
     @Subscribe
     public void onLoad(GeyserPreInitializeEvent event) {
         source = dataFolder().resolve("input").toFile();
         source.mkdirs();
+
+        LOGGER = logger();
 
         File generatedPack = dataFolder().resolve("generated_pack").toFile();
 
@@ -54,6 +58,4 @@ public class ExtensionMain implements Extension {
             event.resourcePacks().add(generatedPackZip);
         }
     }
-
-
 }

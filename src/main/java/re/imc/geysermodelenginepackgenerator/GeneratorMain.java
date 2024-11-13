@@ -20,6 +20,7 @@ public class GeneratorMain {
     public static final Map<String, Animation> animationMap = new HashMap<>();
     public static final Map<String, Geometry> geometryMap = new HashMap<>();
     public static final Map<String, Map<String, Texture>> textureMap = new HashMap<>();
+    public static final Map<String, List<Texture>> variantTextureMap = new HashMap<>();
     public static final Gson GSON = new GsonBuilder().setPrettyPrinting()
             .create();
 
@@ -50,19 +51,43 @@ public class GeneratorMain {
             }
         }
         boolean canAdd = false;
-        for (File e : folder.listFiles()) {
-            if (e.isDirectory()) {
-                generateFromFolder(currentPath + folder.getName() + "/", e);
+        for (File file : folder.listFiles()) {
+            if (file.isDirectory()) {
+                if (file.getName().contains("variant")) {
+                    for (File file2 : file.listFiles()) {
+                        if (file2.getName().endsWith(".png")) {
+                            ExtensionMain.LOGGER.warning("File %s parent is %s".formatted(file2.toPath(), file2.getParent()));
+                            if (!variantTextureMap.containsKey(modelId))
+                                variantTextureMap.put(modelId, new ArrayList<>());
+
+                            String textureName = file.getName().replace(".png", "");
+                            Set<String> bindingBones = new HashSet<>();
+                            bindingBones.add("*");
+                            if (modelConfig.getBingingBones().containsKey(textureName)) {
+                                bindingBones = modelConfig.getBingingBones().get(textureName);
+                            }
+
+                            variantTextureMap.get(modelId).add(new Texture(modelId, currentPath, bindingBones, file2.toPath()));
+                            ExtensionMain.LOGGER.warning("Added texture to %s at path %s and file %s".formatted(modelId, file.getPath(), file2.toPath()));
+                            ExtensionMain.LOGGER.warning("Current size for %s is %s".formatted(modelId, variantTextureMap.get(modelId).size()));
+                        }
+                        else {
+                            ExtensionMain.LOGGER.warning("Found unknown variant %s in %s".formatted(file2.getPath(), currentPath));
+                        }
+                    }
+                }
+                else
+                    generateFromFolder(currentPath + folder.getName() + "/", file);
             }
-            if (e.getName().endsWith(".png")) {
-                String textureName = e.getName().replace(".png", "");
+            if (file.getName().endsWith(".png")) {
+                String textureName = file.getName().replace(".png", "");
                 Set<String> bindingBones = new HashSet<>();
                 bindingBones.add("*");
                 if (modelConfig.getBingingBones().containsKey(textureName)) {
                     bindingBones = modelConfig.getBingingBones().get(textureName);
                 }
                 Map<String, Texture> map = textureMap.computeIfAbsent(modelId, s -> new HashMap<>());
-                map.put(textureName, new Texture(modelId, currentPath, bindingBones, e.toPath()));
+                map.put(textureName, new Texture(modelId, currentPath, bindingBones, file.toPath()));
                 entity.setTextureMap(map);
                 if (modelConfig.getBingingBones().isEmpty()) {
                     modelConfig.getBingingBones().put(textureName, Set.of("*"));
@@ -70,9 +95,9 @@ public class GeneratorMain {
                 }
 
             }
-            if (e.getName().endsWith(".json")) {
+            if (file.getName().endsWith(".json")) {
                 try {
-                    String json = Files.readString(e.toPath());
+                    String json = Files.readString(file.toPath());
                     if (isAnimationFile(json)) {
                         Animation animation = new Animation();
                         animation.setPath(currentPath);
@@ -126,8 +151,9 @@ public class GeneratorMain {
             entityMap.put(modelId, entity);
         }
     }
-    public static void startGenerate(File source, File output) {
 
+    public static void startGenerate(File source, File output) {
+        ExtensionMain.LOGGER.warning("Starting new pack generation...");
 
         for (File file1 : source.listFiles()) {
             if (file1.isDirectory()) {
@@ -269,9 +295,31 @@ public class GeneratorMain {
             }
         }
 
+        for (var entry : variantTextureMap.entrySet()) {
+            ExtensionMain.LOGGER.warning("Found textures for %s are %s".formatted(entry.getKey(), entry.getValue().size()));
+            for (var texture : entry.getValue()) {
+                ExtensionMain.LOGGER.warning("Added texture variant at path %s and original path %s".formatted(texture.getPath(), texture.getOriginalPath()));
+                Path path = texturesFolder.toPath().resolve(entry.getKey());
+                Path variantFolder = path.resolve("variant");
+                variantFolder.toFile().mkdirs();
+                Path texturePath = variantFolder.resolve(texture.getOriginalPath().getFileName());
+                texturePath.toFile().getParentFile().mkdirs();
+                ExtensionMain.LOGGER.warning("Added texture variant at path %s".formatted(texturePath));
+
+                if (texturePath.toFile().exists()) {
+                    continue;
+                }
+                try {
+                    Files.copy(texture.getOriginalPath(), texturePath, StandardCopyOption.REPLACE_EXISTING);
+                } catch (IOException e) {
+                    e.printStackTrace();
+                }
+            }
+        }
+
         for (Map.Entry<String, Entity> entry : entityMap.entrySet()) {
             Entity entity = entry.getValue();
-            entity.modify();
+            entity.modify(variantTextureMap);
 
             Path entityPath = entityFolder.toPath().resolve(entity.getPath() + entry.getKey() + ".entity.json");
             entityPath.toFile().getParentFile().mkdirs();
@@ -295,7 +343,7 @@ public class GeneratorMain {
                 continue;
             }
             try {
-                Files.writeString(renderPath, controller.generate(), StandardCharsets.UTF_8);
+                Files.writeString(renderPath, controller.generate(variantTextureMap), StandardCharsets.UTF_8);
             } catch (IOException e) {
                 e.printStackTrace();
             }

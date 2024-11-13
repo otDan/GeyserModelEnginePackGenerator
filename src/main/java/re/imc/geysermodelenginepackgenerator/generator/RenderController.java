@@ -19,9 +19,9 @@ public class RenderController {
     }
 
     // look, I'm fine with your other code and stuff, but I ain't using templates for JSON lmao
-    public String generate() {
+    public String generate(Map<String, List<Texture>> allVariants) {
         JsonObject root = new JsonObject();
-        root.addProperty("format_version", "1.8.0");
+        root.addProperty("format_version", "1.10.0");
 
         JsonObject renderControllers = new JsonObject();
         root.add("render_controllers", renderControllers);

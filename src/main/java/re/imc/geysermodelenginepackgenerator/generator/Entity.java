@@ -3,11 +3,14 @@ package re.imc.geysermodelenginepackgenerator.generator;
 import com.google.gson.JsonArray;
 import com.google.gson.JsonObject;
 import com.google.gson.JsonParser;
+import com.google.gson.stream.JsonReader;
 import lombok.AllArgsConstructor;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
 import lombok.Setter;
 import me.zimzaza4.geyserutils.geyser.GeyserUtils;
+import re.imc.geysermodelenginepackgenerator.ExtensionMain;
+import re.imc.geysermodelenginepackgenerator.util.temp.ModelVariant;
 
 import java.util.*;
 
@@ -65,7 +68,7 @@ public class Entity {
         this.modelId = modelId;
     }
 
-    public void modify() {
+    public void modify(Map<String, List<Texture>> allVariants) {
 
         json = new JsonParser().parse(TEMPLATE.replace("%entity_id%", modelId)
                 .replace("%geometry%", "geometry.meg_" + modelId)
@@ -74,7 +77,6 @@ public class Entity {
                 .replace("%material%", modelConfig.getMaterial())).getAsJsonObject();
 
         JsonObject description = json.get("minecraft:client_entity").getAsJsonObject().get("description").getAsJsonObject();
-        JsonObject jsonAnimations = description.get("animations").getAsJsonObject();
         JsonObject jsonTextures = description.get("textures").getAsJsonObject();
         JsonObject jsonGeometry = description.get("geometry").getAsJsonObject();
         JsonObject jsonMaterials = description.get("materials").getAsJsonObject();
@@ -102,7 +104,33 @@ public class Entity {
 
         }
 
-        JsonArray animate = description.get("scripts").getAsJsonObject().get("animate").getAsJsonArray();
+        JsonObject textures = description.getAsJsonObject("textures");
+        var textureVariants = allVariants.get(modelId);
+        if (textureVariants != null) {
+            for (var modelVariant : ModelVariant.values()) {
+                boolean found = false;
+
+                for (var variant : textureVariants) {
+                    String variantName = variant.getOriginalPath().toFile().getName().replace(".png", "");
+                    if (modelVariant.name().equals(variantName.toUpperCase())) {
+                        found = true;
+                        break;
+                    }
+                }
+
+                if (found) {
+                    textures.addProperty(modelVariant.name().toLowerCase(), "textures/entity/" + path + modelId + "/variant/" + modelVariant.name().toLowerCase());
+                    ExtensionMain.LOGGER.warning("Added texture variant %s for %s".formatted(modelVariant.name().toLowerCase(), modelId));
+                }
+                else {
+                    textures.addProperty(modelVariant.name().toLowerCase(), "textures/entity/" + path + modelId + "/" + modelId);
+                    ExtensionMain.LOGGER.warning("Added not found texture variant %s for %s".formatted(modelVariant.name().toLowerCase(), modelId));
+                }
+            }
+        }
+
+        JsonObject jsonAnimations = description.getAsJsonObject("animations");
+        JsonArray animate = description.getAsJsonObject("scripts").getAsJsonArray("animate");
 
         if (animation != null) {
             for (String animation : animation.animationIds) {
